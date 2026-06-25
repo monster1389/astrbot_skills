@@ -1,0 +1,6 @@
+temp/
+icons/
+__pycache__/
+*.pyc
+*.pem
+config.json

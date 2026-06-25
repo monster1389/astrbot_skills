@@ -1,0 +1,9 @@
+{
+  "api_host": "YOUR_API_HOST",
+  "api_key": "YOUR_API_KEY",
+  "location": "101280107",
+  "location_name": "越秀",
+  "default_hours": "48h",
+  "output_dir": "/AstrBot/data/skills/weather_chart/temp",
+  "output_filename": "weather_chart.png"
+}
