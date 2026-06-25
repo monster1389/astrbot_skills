@@ -5,5 +5,6 @@
   "location_name": "越秀",
   "default_hours": "48h",
   "output_dir": "/AstrBot/data/skills/weather_chart/temp",
-  "output_filename": "weather_chart.png"
+  "output_filename": "weather_chart.png",
+  "astr_api_key": "abk_xxx"
 }
