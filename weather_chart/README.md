@@ -8,7 +8,7 @@
 |------|------|--------|------|
 | 逐小时预报 | `chart.py` | 24h/72h/168h | "天气" "温度" "预报" |
 | 分钟降水 | `minutely_chart.py` | minutely/5m | "下雨" "降水" "带伞" |
-| 定时推送 | `cron_rain.sh` | 绕开LLM直发 | 7:45 / 17:45 cron |
+| 定时推送 | `cron_rain.sh` | future_task 调度 | 7:45 / 17:45 |
 
 ## 快速开始
 
@@ -67,15 +67,9 @@ weather_chart/
 
 ## 定时推送
 
-`scripts/cron_rain.sh` — 绕开 LLM，通过 AstrBot HTTP API 定时推送分钟降水图到 QQ。
+通过 AstrBot 的 `future_task` 调度 `scripts/cron_rain.sh`，每天 7:45 / 17:45 推分钟降水图到 QQ。
 
-需在 `config.json` 中配置 `astr_api_key`（WebUI 创建，需 `file` + `im` scope）。部署：
-
-```bash
-apt install cron && cron
-crontab -e
-# 一行：45 7,17 * * * /AstrBot/data/skills/weather_chart/scripts/cron_rain.sh >> /tmp/cron_rain.log 2>&1
-```
+需在 `config.json` 中配置 `astr_api_key`（WebUI 创建，需 `file` + `im` scope）。
 
 ## 依赖
 

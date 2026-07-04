@@ -7,6 +7,7 @@ from datetime import datetime, timezone, timedelta
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
+import matplotlib.dates as mdates
 from matplotlib.font_manager import FontProperties
 
 CST = timezone(timedelta(hours=8))
@@ -50,7 +51,7 @@ def geo_lookup(name: str) -> dict | None:
 
 
 def fetch_minutely(lon: str, lat: str) -> dict:
-    """Fetch minutely/5m data, return {summary, items}."""
+    """Fetch minutely/5m data, return raw API JSON (with updateTime, summary, minutely)."""
     url = f"https://{cfg['api_host']}/v7/minutely/5m?location={lon},{lat}"
     headers = {"Accept-Encoding": "gzip"}
     if _jwt:
@@ -87,13 +88,24 @@ def plot(location_name: str = None, out_path: str = None) -> str:
         raise RuntimeError(f"Minutely API error: {data}")
 
     items = data['minutely']
+    update_time = data.get('updateTime', '')
+    summary = data.get('summary', '')
+
+    # Parse updateTime for display
+    try:
+        ut_dt = datetime.fromisoformat(update_time).astimezone(CST)
+        ut_label = f"数据更新: {ut_dt.strftime('%m-%d %H:%M')}"
+    except (ValueError, TypeError):
+        ut_label = ''
+
     times = [datetime.fromisoformat(it['fxTime']).astimezone(CST) for it in items]
     precips = [float(it['precip']) for it in items]
 
     # ── Chart ──
     wm_font = FontProperties(fname="/usr/share/fonts/truetype/wqy/wqy-microhei.ttc", size=160)
+    label_font = FontProperties(fname="/usr/share/fonts/truetype/wqy/wqy-microhei.ttc", size=11)
 
-    fig, ax = plt.subplots(figsize=(12, 5))
+    fig, ax = plt.subplots(figsize=(12, 5.3))
     fig.patch.set_facecolor('#0D1117')
     ax.set_facecolor('#0D1117')
 
@@ -104,12 +116,31 @@ def plot(location_name: str = None, out_path: str = None) -> str:
     for spine in ax.spines.values():
         spine.set_color('#2A3A4A')
 
+    # ── X-axis: explicit locator/formatter for alignment ──
+    ax.xaxis.set_major_locator(mdates.MinuteLocator(byminute=[0, 15, 30, 45]))
+    ax.xaxis.set_major_formatter(mdates.DateFormatter('%H:%M', tz=CST))
+
+    # ── Annotations ──
+    # Update time — top-right inside the axes
+    if ut_label:
+        ax.text(0.99, 0.97, ut_label, transform=ax.transAxes,
+                fontproperties=label_font, color='#7EC8E3', alpha=0.75,
+                ha='right', va='top', zorder=4)
+
+    # Summary — below x-axis, centered
+    if summary:
+        fig.text(0.5, 0.01, summary, transform=fig.transFigure,
+                 fontproperties=label_font, color='#B0D4E8', alpha=0.85,
+                 ha='center', va='bottom', zorder=5)
+
     # Watermark
     ax.text(0.5, 0.5, loc['name'], transform=ax.transAxes,
             fontproperties=wm_font, color='#7EC8E3', alpha=0.10, ha='center', va='center', zorder=0)
 
-    fig.autofmt_xdate()
-    plt.tight_layout(pad=2)
+    # Rotate x-tick labels (replaces autofmt_xdate which may reset locator)
+    plt.setp(ax.get_xticklabels(), rotation=30, ha='right')
+    # Make extra room at bottom for summary text
+    plt.subplots_adjust(bottom=0.13)
 
     os.makedirs(os.path.dirname(out_path) or '.', exist_ok=True)
     plt.savefig(out_path, dpi=150, facecolor='#0D1117', bbox_inches='tight')
