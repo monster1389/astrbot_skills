@@ -37,7 +37,15 @@ python3 /AstrBot/data/skills/weekly_summary/scripts/extract_chat.py \
 
 ### 第三步：发送总结
 
-将总结写入 `/tmp/week_summary.md`，用 `send_message_to_user` 发送文件。
+将总结写入 `/tmp/week_summary.md`，**先 cp 到 workspace 再发送**：
+
+```
+cp /tmp/week_summary.md /AstrBot/data/workspaces/napcat_FriendMessage_2854964693/week_summary.md
+```
+
+用 `send_message_to_user` 发送文件，路径为 `/AstrBot/data/workspaces/napcat_FriendMessage_2854964693/week_summary.md`。
+
+**禁止以纯文本发送总结——只发 md 文件。**
 
 ## 总结模板
 
