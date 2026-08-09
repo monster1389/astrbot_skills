@@ -47,6 +47,14 @@ cp /tmp/week_summary.md /AstrBot/data/workspaces/napcat_FriendMessage_2854964693
 
 **禁止以纯文本发送总结——只发 md 文件。**
 
+发送后归档：
+
+```
+cp /tmp/week_summary.md "/AstrBot/data/archive/weekly_summary/week_summary_$(date +%F_%H-%M).md"
+```
+
+归档文件名示例：`week_summary_2026-08-09_21-05.md`（精确到分钟）。
+
 ## 总结模板
 
 ```markdown
@@ -103,3 +111,7 @@ cp /tmp/week_summary.md /AstrBot/data/workspaces/napcat_FriendMessage_2854964693
 - **情绪总结**：如果某天对话密度/效率明显突出，在话题末尾加一行点评，如「本周最高效的一天是周四——FP-30X 从理论到导出全链路 3 小时闭环」
 - **关联未闭环**：在「下一步」中优先列出之前总结标注过「未闭环」的项
 - **文件清理**：总结发送后删除 `/tmp/week_raw.md`（原始数据太大不用留）
+
+## 约束
+
+- **脚本报错时只记录失败原因并通知用户，禁止自行修改脚本源码或配置文件。**

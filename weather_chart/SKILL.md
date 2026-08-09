@@ -39,3 +39,4 @@ python3 /AstrBot/data/skills/weather_chart/scripts/minutely_chart.py
 ## 约束
 - 禁止直接调用和风天气 API 或任何其他天气数据源。所有数据由 `chart.py` 或 `minutely_chart.py` 处理。
 - 禁止添加额外文字摘要、评论或数据分析，避免影响判断。唯一输出为生成的图片。
+- **脚本报错时只记录失败原因并通知用户，禁止自行修改脚本源码或配置文件。**
