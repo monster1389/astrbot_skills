@@ -78,7 +78,7 @@ def fetch_preview_image(url: str, dest: str) -> str:
 
 
 def build_preview(conn: sqlite3.Connection, limit: int = 60,
-                  out_dir: str = "/AstrBot/data/niacg_catalog/pdf",
+                  out_dir: str = "/AstrBot/data/skills/niacg_catalog/pdf",
                   tmp_dir: str = "/tmp/niacg_preview") -> str:
     """执行拼预览 PDF 全流程。
 

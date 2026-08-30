@@ -473,9 +473,9 @@ if __name__ == "__main__":
                     help="抓取页数（含 start_page，全量约 300 页）")
     ap.add_argument("--concurrency", type=int, default=4,
                     help="并发抓取线程数")
-    ap.add_argument("--db", default="/AstrBot/data/niacg_catalog/catalog/niacg.db",
+    ap.add_argument("--db", default="/AstrBot/data/skills/niacg_catalog/catalog/niacg.db",
                     help="SQLite 主库路径")
-    ap.add_argument("--photos", default="/AstrBot/data/niacg_catalog/photos",
+    ap.add_argument("--photos", default="/AstrBot/data/skills/niacg_catalog/photos",
                     help="photos/ 根目录")
     args = ap.parse_args()
 
