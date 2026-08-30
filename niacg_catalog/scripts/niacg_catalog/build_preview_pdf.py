@@ -172,11 +172,11 @@ def _render_pdf(images: list, pdf_path: str) -> None:
         if img_ok:
             try:
                 from PIL import Image as PILImage
-                normalized = img_path + ".png"
+                normalized = img_path + ".jpg"
                 with PILImage.open(img_path) as im:
-                    im = im.convert("RGB")
-                    im.thumbnail((800, 1200))   # 预览用缩略：控制在 ~800px 宽，提速
-                    im.save(normalized, "PNG")
+                    im = im.convert("RGB")       # JPEG 不支持 alpha
+                    im.thumbnail((800, 1200))    # 预览用缩略：控制在 ~800px 宽
+                    im.save(normalized, "JPEG", quality=85)  # 用 JPEG 嵌入而非无损 PNG，避免小图膨胀
                 img_ok = os.path.exists(normalized)
                 img_path = normalized
             except Exception:
