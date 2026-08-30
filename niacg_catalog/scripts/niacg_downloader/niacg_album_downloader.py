@@ -33,9 +33,9 @@ UA    = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, li
 MIN_BYTES = 2000   # 小于此字节数视为坏图
 # httpx 用 proxy= 单字符串，同时作用于 http/https
 
-# 主图路径模式（2026-08-29 实测更新：COS 已从 datu 迁到 hen/{年}/{月}/{日}/{id}/{序号}_{hash}；2022 老套图走 img2.xunge.cyou/d/file/p/）
+# 主图路径模式（2026-08-31 实测更新：COS 已从 datu 迁到 hen/{年}/{月}/{日}/{id}/{序号}_{hash}；2022 老套图走 img2.xunge.cyou/datu/ 或 img2.xunge.cyou/d/file/p/）
 MAIN_IMG_RE = re.compile(
-    r'(?:src|data-src)="(https?://(?:boom\.xunge\.cyou/(?:datu|hen)|tu\.xunge\.cyou/tupic|img2\.xunge\.cyou/d/file/p)/[^"]+\.(?:jpg|jpeg|webp|png))"'
+    r'(?:src|data-src)="(https?://(?:boom\.xunge\.cyou/(?:datu|hen)|tu\.xunge\.cyou/tupic|img2\.xunge\.cyou/(?:datu|d/file/p))/[^"]+\.(?:jpg|jpeg|webp|png))"'
 )
 
 

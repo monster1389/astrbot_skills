@@ -160,3 +160,13 @@ def test_collect_urls_empty_raises():
         m.return_value = resp
         with pytest.raises(RuntimeError):
             dl.collect_urls("1", "149223")
+
+
+# ---------------- MAIN_IMG_RE：img2/datu 老套主图 ----------------
+
+def test_main_img_re_matches_img2_datu():
+    """img2.xunge.cyou/datu/（2022 老套主图）应被 MAIN_IMG_RE 命中。"""
+    for attr in ("src", "data-src"):
+        html = (f'<img {attr}="https://img2.xunge.cyou/datu/1487/16/1195abc.jpg">')
+        m = dl.MAIN_IMG_RE.search(html)
+        assert m and m.group(1) == "https://img2.xunge.cyou/datu/1487/16/1195abc.jpg", (attr, m)
