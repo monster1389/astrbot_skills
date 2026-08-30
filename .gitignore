@@ -4,3 +4,20 @@ __pycache__/
 *.pyc
 *.pem
 config.json
+
+# ===== niacg_catalog 运行时产物（二进制 / 可重建，一律不进 git）=====
+# SQLite 主库本体
+niacg_catalog/*.db
+niacg_catalog/*.sqlite
+niacg_catalog/*.sqlite3
+niacg_catalog/catalog/*.db
+niacg_catalog/catalog/*.sqlite
+niacg_catalog/catalog/*.sqlite3
+# 图集源图 & 预览 PDF（体积大 / 可重建）
+niacg_catalog/photos/
+niacg_catalog/pdf/
+# 降级导出物 / 抓取日志
+niacg_catalog/catalog/exports/
+niacg_catalog/catalog/logs/
+# Python 缓存
+niacg_catalog/__pycache__/
