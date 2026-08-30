@@ -17,14 +17,14 @@ import datetime
 # ---------------- S7a：纯逻辑 ----------------
 
 def select_preview(rows: list[dict], limit: int = 60) -> list[dict]:
-    """从 pdfed=0 的行中按 date 升序取前 limit 条。
+    """从 pdfed=0 的行中按 id（=站内 pid）升序取前 limit 条。
 
     Args:
         rows: albums 行记录（含 id/date/pdfed 等字段）的列表。
         limit: 最多选取条数，默认 60。
 
     Returns:
-        按 date 升序、且限量的 preview 行列表（仅 pdfed=0）。
+        按 id 升序、且限量的 preview 行列表（仅 pdfed=0）。
     """
     # 只取未看过（pdfed=0）的；按 pid（=id）升序——pid 是站内时间代理，
     # 列表页 phase 无 date 时也可靠地按「最早」取（2026-08-30 实测 pid 与 date 单调同步）
@@ -49,6 +49,52 @@ def mark_pdfed(conn: sqlite3.Connection, pids: list[int]) -> int:
         "UPDATE albums SET pdfed=1 WHERE id=?", [(p,) for p in pids])
     conn.commit()
     return cur.rowcount
+
+
+def write_preview_batch(conn: sqlite3.Connection, batch_id: str, items: list[tuple]) -> int:
+    """把本批预览映射 (seq, album_id, title, model) 写入 preview_batch 表。
+
+    纯逻辑：供 build_preview 在拼完预览 PDF 后落库，保证「第几套 → album_id」可反查。
+    编排层不手写 SQL，映射落库统一走本函数（SKILL 第5步）。
+
+    Args:
+        conn: 已连接的 SQLite 连接。
+        batch_id: 预览批次标识（时间戳 YYYYMMDD_HHMM）。
+        items: 本批映射，每项 (seq, album_id, title, model) 四元组。
+
+    Returns:
+        插入行数。
+    """
+    if not items:
+        return 0
+    cur = conn.executemany(
+        "INSERT INTO preview_batch (batch_id, seq, album_id, title, model) "
+        "VALUES (?,?,?,?,?)",
+        [(batch_id, seq, album_id, title, model) for (seq, album_id, title, model) in items])
+    conn.commit()
+    return cur.rowcount
+
+
+def query_preview_batch(conn: sqlite3.Connection, batch_id: str, seq: int) -> dict | None:
+    """按 (batch_id, seq) 查一条预览批次映射。
+
+    供编排层在用户挑中「第几套」后反查 `{album_id, title, model}`（SKILL 第7步），
+    无命中返回 None。
+
+    Args:
+        conn: 已连接的 SQLite 连接。
+        batch_id: 预览批次标识。
+        seq: 批内序号（1..限 60）。
+
+    Returns:
+        ``{"album_id": int, "title": str, "model": str}``；查不到返回 None。
+    """
+    row = conn.execute(
+        "SELECT album_id, title, model FROM preview_batch WHERE batch_id=? AND seq=?",
+        (batch_id, seq)).fetchone()
+    if row is None:
+        return None
+    return {"album_id": row[0], "title": row[1], "model": row[2]}
 
 
 # ---------------- S7b：IO 层（下载缩略图 + 拼 PDF，活体现测） ----------------
@@ -93,7 +139,7 @@ def build_preview(conn: sqlite3.Connection, limit: int = 60,
     Returns:
         生成的 PDF 绝对路径。
     """
-    cols = ["id", "title", "date", "tags", "preview_urls", "pdfed"]
+    cols = ["id", "title", "date", "tags", "preview_urls", "pdfed", "model"]
     rows = [dict(zip(cols, r)) for r in conn.execute(
         f"SELECT {','.join(cols)} FROM albums")]
     selected = select_preview(rows, limit)
@@ -130,13 +176,16 @@ def build_preview(conn: sqlite3.Connection, limit: int = 60,
     batch_id = datetime.datetime.now().strftime("%Y%m%d_%H%M")
     pdf_path = os.path.join(out_dir, f"niacg_prev_{batch_id}.pdf")
     _render_pdf(images, pdf_path)
+    # 落批次映射（seq→album_id/title/model）供挑中后反查，并置 pdfed=1
+    write_preview_batch(
+        conn, batch_id,
+        [(i, row["id"], row["title"], row["model"])
+         for i, row in enumerate(selected, start=1)])
     mark_pdfed(conn, [r["id"] for r in selected])
-    return pdf_path
-
-    # 清理临时缩略图
+    # 清理临时缩略图（放在 return 前，原实现死在 return 之后不会执行）
     import shutil
     shutil.rmtree(tmp_dir, ignore_errors=True)
-    return pdf_path
+    return pdf_path, batch_id
 
 
 def _render_pdf(images: list, pdf_path: str) -> None:

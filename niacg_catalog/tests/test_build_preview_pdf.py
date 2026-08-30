@@ -85,3 +85,30 @@ def test_mark_pdfed_all_pids(tmp_path):
     n = mark_pdfed(conn, [10, 11])
     assert n == 2
     assert conn.execute("SELECT COUNT(*) FROM albums WHERE pdfed=1").fetchone()[0] == 2
+
+
+# ---------------- write/query preview_batch（映射落库/反查），禁止 LLM 手写 SQL ----------------
+
+def test_write_preview_batch_roundtrip(tmp_path):
+    """写入 (seq,album_id,title,model) 后可按 (batch_id,seq) 反查。"""
+    from build_preview_pdf import write_preview_batch, query_preview_batch
+    conn = _conn(tmp_path)
+    n = write_preview_batch(conn, "20260831_0035", [(1, 721, "T", "M")])
+    assert n == 1
+    got = query_preview_batch(conn, "20260831_0035", 1)
+    assert got == {"album_id": 721, "title": "T", "model": "M"}
+    conn.close()
+
+
+def test_write_preview_batch_empty_returns_zero(tmp_path):
+    from build_preview_pdf import write_preview_batch
+    conn = _conn(tmp_path)
+    assert write_preview_batch(conn, "B", []) == 0
+    conn.close()
+
+
+def test_query_preview_batch_miss_returns_none(tmp_path):
+    from build_preview_pdf import query_preview_batch
+    conn = _conn(tmp_path)
+    assert query_preview_batch(conn, "B", 99) is None
+    conn.close()

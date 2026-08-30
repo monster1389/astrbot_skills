@@ -28,10 +28,10 @@ description: 一问就列最新/未看过的 niacg COS 图集，拼预览 PDF �
 2. **增量同步**：每次一问**只拉增量**——`sync_multi(conn, start_page=0, pages=N, concurrency=C)`
    从最新页起，撞到库中已有 id 即停（已全量建库，增量秒停）。**不每次翻全量**。
 3. **懒补详情页**：对即将预览那批（pdfed=0 按 id 升序最前 60 套）调 `enrich_pending` 补 date/pages/tags
-4. **拼预览 PDF**：`build_preview(conn, limit=60)` → 得 PDF 绝对路径
-5. **记录批次映射**：发预览前把本批 `(seq→album_id→title/model)` **写入 `preview_batch` 表**（batch_id = 时间戳 YYYYMMDD_HHMM）
+4. **拼预览 PDF**：`build_preview(conn, limit=60)` → 返回 `(pdf_path, batch_id)`（内部已写 `preview_batch` 映射 + 置 pdfed=1）；LLM 拿 `pdf_path` 发、拿 `batch_id` 记录
+5. **记录批次映射**：由 `build_preview` 内置完成（本批 `seq→album_id→title/model` 已落 `preview_batch` 表，batch_id = 时间戳 YYYYMMDD_HHMM）。LLM **不手写 SQL**。
 6. **发预览**：LLM 用 send_message_to_user 发 PDF（存档 pdf/ 不删）
-7. **用户挑中**：LLM 据「第几套」查 `preview_batch` 表 (batch_id, seq) 拿 **album_id + title + model** → 调下载器（model 填入 `--model`）
+7. **用户挑中**：LLM 据「第几套」调 `query_preview_batch(conn, batch_id, seq)` 拿 `{album_id, title, model}` → 调下载器（model 填入 `--model`）。**不手写 SELECT**。
 8. **下载归档**：`niacg_album_downloader --set "{套名}:1:{album_id}" --model "{模特}" --out photos/ --db catalog/niacg.db --samples 5 [--concurrency 4]` → 置 pulled=1 + 抽5张返回路径
    - 归档路径规范（AGENT.md §6）：**photos/{模特}/{套名}/** 两级。`--set` 第一段=套名（第二层），`--model`=模特名（第一层）。
    - **unclassified 兜底**：`--model` 未给或为「未分类/未知/空」时，落 `photos/unclassified/{套名}/`（模特名不明确的统一目录）。
