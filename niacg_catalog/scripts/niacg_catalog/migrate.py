@@ -30,7 +30,7 @@ CREATE TABLE IF NOT EXISTS albums (
 CREATE TABLE IF NOT EXISTS preview_batch (
     batch_id    TEXT NOT NULL,              -- 预览批次标识（时间戳 YYYYMMDD_HHMM）
     seq         INTEGER NOT NULL,           -- 批内序号（1..限 60）
-    pid         INTEGER NOT NULL,           -- 站内 pid（路由到下载）
+    album_id    INTEGER NOT NULL,           -- 指向 albums.id（站内套图 id，路由到下载）
     title       TEXT,                       -- 该套标题（展示/确认用）
     model       TEXT,                       -- 该套模特（展示/确认用）
     PRIMARY KEY (batch_id, seq)
@@ -38,22 +38,35 @@ CREATE TABLE IF NOT EXISTS preview_batch (
 """
 
 
+def _migrate_preview_batch_pid(conn: sqlite3.Connection) -> None:
+    """把历史 preview_batch 表的 `pid` 列重命名为 `album_id`（SQLite 3.25+ 支持 RENAME COLUMN）。
+
+    仅做 schema 对齐、不触碰数据。幂等：仅当存在 `pid` 列且不存在 `album_id` 列时执行，
+    重复调用安全（已迁过则跳过，新库本就用 album_id 也不会误改）。
+    """
+    cols = {r[1] for r in conn.execute("PRAGMA table_info('preview_batch')")}
+    if "pid" in cols and "album_id" not in cols:
+        conn.execute("ALTER TABLE preview_batch RENAME COLUMN pid TO album_id")
+
+
 def init_db(db_path: str) -> sqlite3.Connection:
-    """创建/打开主库并确保 `albums` 表存在。
+    """创建/打开主库并确保 `albums`、`preview_batch` 表存在，对齐历史命名。
 
     Args:
         db_path: SQLite 数据库文件路径。
 
     Returns:
-        连接对象（已建表，未提交事务）。
+        连接对象（已建表、已迁移，事务已提交）。
 
     Raises:
-        sqlite3.Error: 建表失败时抛出。
+        sqlite3.Error: 建表/迁移失败时抛出。
     """
     conn = sqlite3.connect(db_path)
     for stmt in SCHEMA.split(";"):
         stmt = stmt.strip()
         if stmt:
             conn.execute(stmt)
+    conn.commit()
+    _migrate_preview_batch_pid(conn)
     conn.commit()
     return conn

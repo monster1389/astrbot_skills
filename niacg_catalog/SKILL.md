@@ -22,13 +22,13 @@ description: 一问就列最新/未看过的 niacg COS 图集，拼预览 PDF �
 ## 编程序（一问）
 1. **建库**（幂等）：`migrate.init_db(db_path)` 确保 catalog/niacg.db 存在（含 preview_batch 表）
 2. **增量同步**：每次一问**只拉增量**——`sync_multi(conn, start_page=0, pages=N, concurrency=C)`
-   从最新页起，撞到库中已有 pid 即停（已全量建库，增量秒停）。**不每次翻全量**。
-3. **懒补详情页**：对即将预览那批（pdfed=0 按 pid 升序最前 60 套）调 `enrich_pending` 补 date/pages/tags
+   从最新页起，撞到库中已有 id 即停（已全量建库，增量秒停）。**不每次翻全量**。
+3. **懒补详情页**：对即将预览那批（pdfed=0 按 id 升序最前 60 套）调 `enrich_pending` 补 date/pages/tags
 4. **拼预览 PDF**：`build_preview(conn, limit=60)` → 得 PDF 绝对路径
-5. **记录批次映射**：发预览前把本批 `(seq→pid→title/model)` **写入 `preview_batch` 表**（batch_id = 时间戳 YYYYMMDD_HHMM）
+5. **记录批次映射**：发预览前把本批 `(seq→album_id→title/model)` **写入 `preview_batch` 表**（batch_id = 时间戳 YYYYMMDD_HHMM）
 6. **发预览**：LLM 用 send_message_to_user 发 PDF（存档 pdf/ 不删）
-7. **用户挑中**：LLM 据「第几套」查 `preview_batch` 表 (batch_id, seq) 拿 **pid + title + model** → 调下载器（model 填入 `--model`）
-8. **下载归档**：`niacg_album_downloader --set "{套名}:1:pid" --model "{模特}" --out photos/ --db catalog/niacg.db --samples 5 [--concurrency 4]` → 置 pulled=1 + 抽5张返回路径
+7. **用户挑中**：LLM 据「第几套」查 `preview_batch` 表 (batch_id, seq) 拿 **album_id + title + model** → 调下载器（model 填入 `--model`）
+8. **下载归档**：`niacg_album_downloader --set "{套名}:1:{album_id}" --model "{模特}" --out photos/ --db catalog/niacg.db --samples 5 [--concurrency 4]` → 置 pulled=1 + 抽5张返回路径
    - 归档路径规范（AGENT.md §6）：**photos/{模特}/{套名}/** 两级。`--set` 第一段=套名（第二层），`--model`=模特名（第一层）。
    - **unclassified 兜底**：`--model` 未给或为「未分类/未知/空」时，落 `photos/unclassified/{套名}/`（模特名不明确的统一目录）。
    - **并发下载**：`--concurrency` 每套并发线程数（默认 4，图床友好 + 代理带宽够用），保序写 `{i+1:03d}.jpg`。
@@ -39,7 +39,7 @@ description: 一问就列最新/未看过的 niacg COS 图集，拼预览 PDF �
 `niacg_prev_{batch_id}.pdf`，batch_id = `YYYYMMDD_HHMM` 时间戳，唯一可反查映射。
 
 ## 排序与去重
-- 预览批排序键 = **pid 升序**（= 最早那批，pid 是站内时间代理，列表页无 date 也可靠）
+- 预览批排序键 = **id 升序**（= 最早那批，id 是站内时间代理，列表页无 date 也可靠）
 - pdfed=1 的不再列（已看过）；pulled=1 为已归档
 
 ## 红线（勿违）
