@@ -1,0 +1,11 @@
+# niacg_catalog — 运行 & 测试依赖
+# 环境约束（AGENT.md §3）：所有依赖必须在 requirements.txt 声明，
+# 新增依赖须「先在此追加声明，再 pip install」，并尽量锁定版本。
+
+httpx>=0.28.1
+
+pytest
+
+reportlab>=4.0
+
+Pillow>=10.0

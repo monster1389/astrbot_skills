@@ -1,0 +1,29 @@
+# ===== niacg_catalog 忽略清单 =====
+# 只忽略运行时产物 / 可重建数据；源码、配置、文档、requirements.txt 一律入库。
+
+# ---- 数据库（SQLite 主库本体不进 git）----
+*.db
+*.sqlite
+*.sqlite3
+catalog/*.db
+catalog/*.sqlite
+catalog/*.sqlite3
+
+# ---- 图集源图 & PDF 预览（体积大 / 可重建）----
+photos/
+pdf/
+
+# ---- 降级导出物 / 抓取日志（均可再生）----
+catalog/exports/
+catalog/logs/
+
+# ---- Python 缓存 ----
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# ---- 临时 / 系统文件 ----
+*.tmp
+*.bak
+.DS_Store
+Thumbs.db
