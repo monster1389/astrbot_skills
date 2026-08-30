@@ -26,6 +26,15 @@ CREATE TABLE IF NOT EXISTS albums (
     pulled      INTEGER NOT NULL DEFAULT 0, -- 0=未拉整套 / 1=已拉整套归档
     updated_at  TEXT
 );
+
+CREATE TABLE IF NOT EXISTS preview_batch (
+    batch_id    TEXT NOT NULL,              -- 预览批次标识（时间戳 YYYYMMDD_HHMM）
+    seq         INTEGER NOT NULL,           -- 批内序号（1..限 60）
+    pid         INTEGER NOT NULL,           -- 站内 pid（路由到下载）
+    title       TEXT,                       -- 该套标题（展示/确认用）
+    model       TEXT,                       -- 该套模特（展示/确认用）
+    PRIMARY KEY (batch_id, seq)
+);
 """
 
 
@@ -42,6 +51,9 @@ def init_db(db_path: str) -> sqlite3.Connection:
         sqlite3.Error: 建表失败时抛出。
     """
     conn = sqlite3.connect(db_path)
-    conn.execute(SCHEMA)
+    for stmt in SCHEMA.split(";"):
+        stmt = stmt.strip()
+        if stmt:
+            conn.execute(stmt)
     conn.commit()
     return conn
