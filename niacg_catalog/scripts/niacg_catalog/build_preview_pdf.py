@@ -126,9 +126,12 @@ def build_preview(conn: sqlite3.Connection, limit: int = 60,
         else:
             images.append((row, ""))
 
-    pdf_path = os.path.join(out_dir, f"preview_{datetime.datetime.now():%Y%m%d_%H%M%S}.pdf")
+    # 命名规范（design.md 拍板）：niacg_prev_{batch_id}.pdf，batch_id=时间戳 YYYYMMDD_HHMM
+    batch_id = datetime.datetime.now().strftime("%Y%m%d_%H%M")
+    pdf_path = os.path.join(out_dir, f"niacg_prev_{batch_id}.pdf")
     _render_pdf(images, pdf_path)
     mark_pdfed(conn, [r["id"] for r in selected])
+    return pdf_path
 
     # 清理临时缩略图
     import shutil
@@ -164,7 +167,7 @@ def _render_pdf(images: list, pdf_path: str) -> None:
 
     doc = SimpleDocTemplate(pdf_path, pagesize=A4, margins=10*mm)
     story = []
-    for row, img_path in images:
+    for _seq, (row, img_path) in enumerate(images, start=1):
         cells = []
         img_ok = img_path and os.path.exists(img_path)
         # reportlab 对 webp 兼容不稳，用 PIL 统一转成 PNG 再嵌入；
@@ -185,7 +188,7 @@ def _render_pdf(images: list, pdf_path: str) -> None:
             cells.append(Image(img_path, width=58*mm, height=76*mm))
         else:
             cells.append(Paragraph("[无图]", cell_s))
-        text = Paragraph(f"{row['title']}<br/>{row['date']}<br/>{row['tags']}", cell_s)
+        text = Paragraph(f"#{_seq} {row['title']}<br/>{row['date']}<br/>{row['tags']}", cell_s)
         cells.append(text)
         row_tbl = Table([[cells[0], cells[1]]], colWidths=[64*mm, 122*mm])
         row_tbl.setStyle(TableStyle([
