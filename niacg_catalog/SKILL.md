@@ -41,6 +41,15 @@ description: 一问就列最新/未看过的 niacg COS 图集，拼预览 PDF �
 ## 预览 PDF 命名
 `niacg_prev_{batch_id}.pdf`，batch_id = `YYYYMMDD_HHMM` 时间戳，唯一可反查映射。
 
+## 预览 PDF 发送约定（最小可行链路）
+发送预览 PDF 只用 `send_message_to_user` 一条 `type=file` 消息（`path` 指 `pdf/` 源码路径），无其它步骤。成功要素（缺一不可）：
+- **路径可达**：文件在 `data/skills/niacg_catalog/pdf/`（NapCat 可读），**勿放 `/tmp`**（跨容器不可读）。
+- **英文名 + 完整 `.pdf` 后缀**：`niacg_prev_{batch_id}.pdf` 已是；**别改成中文/去后缀**——QQ 会吞后缀导致发不出。
+- **体积别太大**：缩略图用 JPEG 嵌入（约 1.7MB 级），别用 PNG 大图。
+- **判成功**：返回 `Message sent` 即已送达。
+
+⚠️ 陷阱：`send_message_to_user` 发文件的成功记录**不走 `render.deliver` 日志**（那条只渲染 assistant 文本回复，才会冒出 `table_*.png`）。**别拿「render.deliver 无『已发送 文件』」当发送失败**——用英文名+完整后缀+源码路径一次就能成，别去改中文名/挪路径/复制副本瞎折腾。
+
 ## 排序与去重
 - 预览批排序键 = **id 升序**（= 最早那批，id 是站内时间代理，列表页无 date 也可靠）
 - pdfed=1 的不再列（已看过）；pulled=1 为已归档
