@@ -24,6 +24,7 @@ niacg 套图下载器 (niacg_album_downloader)
       --out ops_dl
 """
 import argparse, os, re, sys, httpx
+from concurrent.futures import ThreadPoolExecutor
 
 # ---- 环境常量（可用环境变量覆盖）----
 PROXY = os.environ.get("NIACG_PROXY", "http://172.17.0.1:7890")
@@ -85,20 +86,27 @@ def sample_evenly(paths, n):
     return [paths[i] for i in idxs]
 
 
-def build_out_dir(out_root: str, model: str, title: str) -> str:
-    """拼接归档输出目录（按 AGENT.md §6「模特 → 套」两级）。
+# model 不明确（未分类/未知/空/None）时归档目录的统一兜底名
+UNCLASSIFIED_DIR = "unclassified"
+_UNNAMED_MODELS = {"未分类", "未知", "unknown", "unidentified", "", None}
+
+
+def build_out_dir(out_root: str, model: str | None, title: str) -> str:
+    """拼接归档输出目录（按 AGENT.md §6「模特 → 套」两级 + unclassified 兜底）。
 
     Args:
         out_root: 输出根目录（如 photos/）。
-        model: 模特名（归档路径的第一层）。解析不出时可为空/None。
+        model: 模特名（归档路径的第一层）。解析不出时可为空/None/「未分类」。
         title: 套名（归档路径的第二层）。
 
     Returns:
-        完整归档目录绝对路径模型。给了 model → ``{out_root}/{model}/{title}/``；
-        未给 model（解析不出）→ 退化单层 ``{out_root}/{title}/``（向后兼容）。
+        完整归档目录。给了明确模特 → ``{out_root}/{model}/{title}/``；
+        模特名不明确（未分类/未知/空/None）→ 统一落 ``{out_root}/unclassified/{title}/``。
     """
-    parts = [p for p in (model, title) if p]
-    return os.path.join(out_root, *parts)
+    model = model or ""
+    if model.strip() in _UNNAMED_MODELS or model.strip() == UNCLASSIFIED_DIR:
+        model = UNCLASSIFIED_DIR
+    return os.path.join(out_root, model, title) if model else os.path.join(out_root, title)
 
 
 def mark_pulled(conn, pid):
@@ -129,23 +137,53 @@ def collect_urls(classid, pid):
     return urls
 
 
-def download(urls, out_dir):
-    """带 Referer 下载，序号命名，覆盖已有；返回 (ok, fail)"""
+def _download_one(url: str, out_dir: str, index: int) -> bool:
+    """下载单张图并按序号命名写入；成功返回 True，失败返回 False（不抛错）。
+
+    Args:
+        url: 图片 URL。
+        out_dir: 归属套的下载目录（已存在）。
+        index: 从 0 起的索引；写盘名形如 ``001.jpg`` / ``001.webp``。
+
+    Returns:
+        下载且写盘成功 → True；任何异常（网络/状态码/体积过小）→ False。
+    """
+    try:
+        r = httpx.get(url, proxy=PROXY,
+                      headers={"User-Agent": UA, "Referer": REF}, timeout=20)
+        if r.status_code == 200 and len(r.content) > MIN_BYTES:
+            ext = ".webp" if ".webp" in url else ".jpg"
+            with open(os.path.join(out_dir, f"{index+1:03d}{ext}"), "wb") as fp:
+                fp.write(r.content)
+            return True
+        return False
+    except Exception:
+        return False
+
+
+def download(urls: list[str], out_dir: str, concurrency: int = 4) -> tuple[int, int]:
+    """并发下载整套，序号命名；返回 (ok, fail)。
+
+    用线程池并发拉图，按输入索引写 ``{i+1:03d}.jpg``，保证序号与 URL 一一对应（保序）。
+    单张失败计入 fail、不中断整体；并发数默认 4（图床友好 + 代理带宽够用）。
+
+    Args:
+        urls: 主图 URL 列表（去重保序）。
+        out_dir: 归属套的下载目录。
+        concurrency: 并发工作线程数（默认 4）。
+
+    Returns:
+        (ok, fail)：下载/写盘成功张数、失败张数。
+    """
     os.makedirs(out_dir, exist_ok=True)
     ok = fail = 0
-    for i, u in enumerate(urls):
-        try:
-            r = httpx.get(u, proxy=PROXY,
-                             headers={"User-Agent": UA, "Referer": REF}, timeout=20)
-            if r.status_code == 200 and len(r.content) > MIN_BYTES:
-                ext = ".webp" if ".webp" in u else ".jpg"
-                with open(os.path.join(out_dir, f"{i+1:03d}{ext}"), "wb") as fp:
-                    fp.write(r.content)
+    with ThreadPoolExecutor(max_workers=max(1, concurrency)) as ex:
+        futures = [ex.submit(_download_one, u, out_dir, i) for i, u in enumerate(urls)]
+        for f in futures:
+            if f.result():
                 ok += 1
             else:
                 fail += 1
-        except Exception:
-            fail += 1
     return ok, fail
 
 
@@ -166,8 +204,10 @@ def main():
     ap.add_argument("--samples", type=int, default=0,
                     help="每套下载成功后等距抽 N 张，绝对路径打到 stdout")
     ap.add_argument("--model", default=None,
-                    help="模特名（归档路径第一层，可选）。给了 → photos/{model}/{套名}/；"
-                    "未给 → 退化单层 photos/{套名}/")
+                    help="模特名（归档路径第一层，可选）。给了明确模特 → photos/{model}/{套名}/；"
+                    "不明确（未分类/未知/空）→ photos/unclassified/{套名}/")
+    ap.add_argument("--concurrency", type=int, default=4,
+                    help="并发出图线程数（默认 4，图床友好）")
     args = ap.parse_args()
 
     sets = [parse_set(s) for s in args.set]
@@ -188,7 +228,7 @@ def main():
                 if not urls:
                     print(f"[{name}] 未找到主图 URL，可能分类不对或页面异常", flush=True)
                     continue
-                ok, fail = download(urls, out_dir)
+                ok, fail = download(urls, out_dir, args.concurrency)
                 total = len([f for f in os.listdir(out_dir) if not f.startswith(".")])
                 print(f"[{name}] 主图={len(urls)} 下载OK={ok} FAIL={fail} 目录张数={total}", flush=True)
 

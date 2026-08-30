@@ -29,8 +29,10 @@ description: 一问就列最新/未看过的 niacg COS 图集，拼预览 PDF �
 5. **记录批次映射**：发预览前把本批 `(seq→pid→title/model)` **写入 `preview_batch` 表**（batch_id = 时间戳 YYYYMMDD_HHMM）
 6. **发预览**：Amadeus 用 send_message_to_user 发 PDF（存档 pdf/ 不删）
 7. **用户挑中**：Amadeus 据「第几套」查 `preview_batch` 表 (batch_id, seq) 拿 **pid + title + model** → 调下载器（model 填入 `--model`）
-8. **下载归档**：`niacg_album_downloader --set "{套名}:1:pid" --model "{模特}" --out photos/ --db catalog/niacg.db --samples 5` → 置 pulled=1 + 抽5张返回路径
-   - 归档路径规范（AGENT.md §6）：**photos/{模特}/{套名}/** 两级。`--set` 第一段=套名（第二层），`--model`=模特名（第一层）；`--model` 省略时退化单层 photos/{套名}/。
+8. **下载归档**：`niacg_album_downloader --set "{套名}:1:pid" --model "{模特}" --out photos/ --db catalog/niacg.db --samples 5 [--concurrency 4]` → 置 pulled=1 + 抽5张返回路径
+   - 归档路径规范（AGENT.md §6）：**photos/{模特}/{套名}/** 两级。`--set` 第一段=套名（第二层），`--model`=模特名（第一层）。
+   - **unclassified 兜底**：`--model` 未给或为「未分类/未知/空」时，落 `photos/unclassified/{套名}/`（模特名不明确的统一目录）。
+   - **并发下载**：`--concurrency` 每套并发线程数（默认 4，图床友好 + 代理带宽够用），保序写 `{i+1:03d}.jpg`。
    - 模特名来源：Amadeus 第7步反查 `preview_batch` 时一并取 `model`，填入 `--model`（预览时已存）。
 9. **发结果**：Amadeus 拿 5 张路径合并转发/拼 PDF（发完删），源图留在 photos/ 不删
 

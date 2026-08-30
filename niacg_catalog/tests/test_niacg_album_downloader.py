@@ -77,24 +77,36 @@ def test_mark_pulled_missing_pid_returns_zero(tmp_path):
     assert n == 0, n
 
 
-# ---------------- build_out_dir（归档路径：模特→套 两级） ----------------
+# ---------------- build_out_dir（归档路径：模特→套 两级 + unclassified 兜底） ----------------
 
 def test_build_out_dir_two_level():
-    """给了模特 → photos/{模特}/{套名} 两级。"""
+    """给了真实模特 → photos/{模特}/{套名} 两级。"""
     got = build_out_dir("/root/photos", "Machi", "Cyrene_105P")
     assert got == "/root/photos/Machi/Cyrene_105P", got
 
 
-def test_build_out_dir_no_model_single_level():
-    """未给模特（解析不出）→ 退化单层 photos/{套名}，向后兼容。"""
+def test_build_out_dir_unclassified_for_empty_model():
+    """model 为空 → 落 unclassified/{套名}（不明确模特统一兜底）。"""
     got = build_out_dir("/root/photos", "", "Cyrene_105P")
-    assert got == "/root/photos/Cyrene_105P", got
+    assert got == "/root/photos/unclassified/Cyrene_105P", got
 
 
-def test_build_out_dir_none_model():
-    """--model 未指定（None）等同空 → 单层。"""
+def test_build_out_dir_unclassified_for_none_model():
+    """--model 未指定（None）→ 落 unclassified/{套名}。"""
     got = build_out_dir("/root/photos", None, "Masked Shojo")
-    assert got == "/root/photos/Masked Shojo", got
+    assert got == "/root/photos/unclassified/Masked Shojo", got
+
+
+def test_build_out_dir_unclassified_for_chinese_unclass():
+    """model 为「未分类」占位 → 归一化到 unclassified/{套名}。"""
+    got = build_out_dir("/root/photos", "未分类", "Cyrene_105P")
+    assert got == "/root/photos/unclassified/Cyrene_105P", got
+
+
+def test_build_out_dir_unclassified_for_unknown():
+    """model 为「未知」→ 归一化到 unclassified/{套名}。"""
+    got = build_out_dir("/root/photos", "未知", "Cyrene_105P")
+    assert got == "/root/photos/unclassified/Cyrene_105P", got
 
 
 def test_build_out_dir_handles_title_with_special_chars():
