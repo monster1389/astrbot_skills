@@ -112,3 +112,33 @@ def test_query_preview_batch_miss_returns_none(tmp_path):
     conn = _conn(tmp_path)
     assert query_preview_batch(conn, "B", 99) is None
     conn.close()
+
+
+def test_build_preview_calls_enrich_before_render(tmp_path):
+    """build_preview 作为预览入口：内部先调 f_enrich 懒补详情页，再拼 PDF。"""
+    from build_preview_pdf import build_preview
+    from migrate import init_db
+    conn = init_db(str(tmp_path / "t.db"))
+    for pid in (1, 2, 3):
+        conn.execute(
+            "INSERT INTO albums (id,classid,title,date,pdfed,preview_urls) "
+            "VALUES (?,1,'T','',0,'')", (pid,))
+    conn.commit()
+    calls = []
+
+    def fake_enrich(c, pids, **kw):
+        calls.append(pids)
+        for pid in pids:
+            c.execute(
+                "UPDATE albums SET date='2022-06-08',pages=5,tags='全彩' WHERE id=?",
+                (pid,))
+        c.commit()
+
+    pdf, batch_id = build_preview(
+        conn, limit=5,
+        out_dir=str(tmp_path / "pdf"), tmp_dir=str(tmp_path / "tmp"),
+        f_enrich=fake_enrich)
+    assert calls and calls[0] == [1, 2, 3], calls   # enrich 在选出的前批 pids 上调用
+    assert pdf.endswith(f"niacg_prev_{batch_id}.pdf"), pdf
+    assert batch_id
+    conn.close()

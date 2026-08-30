@@ -125,19 +125,24 @@ def fetch_preview_image(url: str, dest: str) -> str:
 
 def build_preview(conn: sqlite3.Connection, limit: int = 60,
                   out_dir: str = "/AstrBot/data/skills/niacg_catalog/pdf",
-                  tmp_dir: str = "/tmp/niacg_preview") -> str:
-    """执行拼预览 PDF 全流程。
+                  tmp_dir: str = "/tmp/niacg_preview",
+                  f_enrich: object = None) -> tuple[str, str]:
+    """执行「生成预览」原子流程：懒补详情页 → 拼预览 PDF → 落批次映射 → 置 pdfed=1。
 
-    查 pdfed=0 → 按 date 升序取 limit → 下载缩略图 → 拼 PDF → 存档 → 置 pdfed=1。
+    一次调用完成整个预览动作，LLM 无需分步调 enrich + build。内部顺序：
+      ①查 pdfed=0 → ②select_preview 按 id 升序取 limit → ③f_enrich 懒补这 60 套的
+      date/pages/tags（回写库）→ ④重读这 60 套拿补全字段 → ⑤下载缩略图拼 PDF →
+      写 preview_batch 映射 → 置 pdfed=1 → 返回 (pdf_path, batch_id)。
 
     Args:
         conn: 已连接的 SQLite 连接。
         limit: 最多拼多少套，默认 60。
         out_dir: PDF 存档目录（pdf/，不删）。
         tmp_dir: 缩略图临时目录（用完即删）。
+        f_enrich: 详情页懒补函数（默认 sync_metadata.enrich_pending），测试可注入 mock。
 
     Returns:
-        生成的 PDF 绝对路径。
+        (pdf_path, batch_id)：生成的 PDF 绝对路径 + 预览批次标识。
     """
     cols = ["id", "title", "date", "tags", "preview_urls", "pdfed", "model"]
     rows = [dict(zip(cols, r)) for r in conn.execute(
@@ -145,6 +150,18 @@ def build_preview(conn: sqlite3.Connection, limit: int = 60,
     selected = select_preview(rows, limit)
     if not selected:
         raise ValueError("没有 pdfed=0 的可拼套")
+
+    # 预览前懒补详情页字段（date/pages/tags）供展示；f_enrich 默认真实 enrich_pending，注入可测
+    if f_enrich is None:
+        from sync_metadata import enrich_pending
+        f_enrich = enrich_pending
+    sel_ids = [r["id"] for r in selected]
+    f_enrich(conn, sel_ids)
+    # enrich 已回写库，重读这 60 套拿补全后的字段（否则拼 PDF 用到的还是旧空值）
+    marks = ",".join("?" * len(sel_ids))
+    refreshed = {r[0]: dict(zip(cols, r)) for r in conn.execute(
+        f"SELECT {','.join(cols)} FROM albums WHERE id IN ({marks})", sel_ids)}
+    selected = [refreshed[i] for i in sel_ids]
 
     os.makedirs(out_dir, exist_ok=True)
     os.makedirs(tmp_dir, exist_ok=True)
