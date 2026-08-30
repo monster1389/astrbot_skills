@@ -85,6 +85,22 @@ def sample_evenly(paths, n):
     return [paths[i] for i in idxs]
 
 
+def build_out_dir(out_root: str, model: str, title: str) -> str:
+    """拼接归档输出目录（按 AGENT.md §6「模特 → 套」两级）。
+
+    Args:
+        out_root: 输出根目录（如 photos/）。
+        model: 模特名（归档路径的第一层）。解析不出时可为空/None。
+        title: 套名（归档路径的第二层）。
+
+    Returns:
+        完整归档目录绝对路径模型。给了 model → ``{out_root}/{model}/{title}/``；
+        未给 model（解析不出）→ 退化单层 ``{out_root}/{title}/``（向后兼容）。
+    """
+    parts = [p for p in (model, title) if p]
+    return os.path.join(out_root, *parts)
+
+
 def mark_pulled(conn, pid):
     """把指定 pid 的套置 pulled=1（已拉整套归档）。
 
@@ -149,6 +165,9 @@ def main():
                     help="主库路径；给了则在下载成功后顺手置 pulled=1")
     ap.add_argument("--samples", type=int, default=0,
                     help="每套下载成功后等距抽 N 张，绝对路径打到 stdout")
+    ap.add_argument("--model", default=None,
+                    help="模特名（归档路径第一层，可选）。给了 → photos/{model}/{套名}/；"
+                    "未给 → 退化单层 photos/{套名}/")
     args = ap.parse_args()
 
     sets = [parse_set(s) for s in args.set]
@@ -162,7 +181,7 @@ def main():
 
     try:
         for name, classid, pid in sets:
-            out_dir = os.path.join(out_root, name)
+            out_dir = build_out_dir(out_root, args.model, name)
             print(f"===== 开始 {name} (classid={classid}, pid={pid}) =====", flush=True)
             try:
                 urls = collect_urls(classid, pid)
