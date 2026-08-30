@@ -19,6 +19,10 @@ description: 一问就列最新/未看过的 niacg COS 图集，拼预览 PDF �
 - `scripts/niacg_downloader/niacg_album_downloader.py` — 下载整套 → photos/，抽5张返回路径
 - 发送由**编排层（LLM）**用 send_message_to_user 完成；脚本无发送/删除能力
 
+### 运行约定
+- 脚本相对路径（`scripts/`、`catalog/niacg.db`、`photos/`、`pdf/`）均以 `skills/niacg_catalog/` 为根运行，勿在会话工作区跑。
+- `--samples N`：每套下载成功等距抽 N 张、绝对路径打到 stdout（编排层据此发图）；`--concurrency` 每套并发线程数（默认 4）。
+
 ## 编程序（一问）
 1. **建库**（幂等）：`migrate.init_db(db_path)` 确保 catalog/niacg.db 存在（含 preview_batch 表）
 2. **增量同步**：每次一问**只拉增量**——`sync_multi(conn, start_page=0, pages=N, concurrency=C)`
@@ -31,6 +35,7 @@ description: 一问就列最新/未看过的 niacg COS 图集，拼预览 PDF �
 8. **下载归档**：`niacg_album_downloader --set "{套名}:1:{album_id}" --model "{模特}" --out photos/ --db catalog/niacg.db --samples 5 [--concurrency 4]` → 置 pulled=1 + 抽5张返回路径
    - 归档路径规范（AGENT.md §6）：**photos/{模特}/{套名}/** 两级。`--set` 第一段=套名（第二层），`--model`=模特名（第一层）。
    - **unclassified 兜底**：`--model` 未给或为「未分类/未知/空」时，落 `photos/unclassified/{套名}/`（模特名不明确的统一目录）。
+   - **model 传参**：显式传「未分类」与不传等价（都落 unclassified）；仅白名单模特才进 `photos/{model}/`。
    - **并发下载**：`--concurrency` 每套并发线程数（默认 4，图床友好 + 代理带宽够用），保序写 `{i+1:03d}.jpg`。
    - 模特名来源：LLM 第7步反查 `preview_batch` 时一并取 `model`，填入 `--model`（预览时已存）。
 9. **发结果**：LLM 拿 5 张路径合并转发/拼 PDF（发完删），源图留在 photos/ 不删

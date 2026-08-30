@@ -8,7 +8,7 @@
 ## 1. 项目定位
 
 niacg.com（次元 niacg）免费图集采集项目。目标：**真人私拍 / 荤向 / 免费 / 非AI，亚洲向为主**。
-独立项目根：`/AstrBot/data/niacg_catalog/`（不放在会话工作区）。
+独立项目根：`/AstrBot/data/skills/niacg_catalog/`（不放在会话工作区）。
 
 ## 2. 目录结构
 
@@ -23,16 +23,16 @@ niacg_catalog/
 ├── scripts/
 │   ├── niacg_downloader/niacg_album_downloader.py   # 下载器（CLI）
 │   └── niacg_catalog/
-│       ├── migrate.py            # 【待建】建库/建表/迁移
-│       ├── sync_metadata.py      # 【待建】增量抓元数据落库
-│       ├── build_preview_pdf.py  # 【待建】拼预览 PDF（拼成即置 pdfed=1）
+│       ├── migrate.py            # 建库/建表/迁移
+│       ├── sync_metadata.py      # 增量抓元数据落库
+│       ├── build_preview_pdf.py  # 拼预览 PDF（拼成即置 pdfed=1）
 │       ├── spicy_tags.json       # 荤素四档 tag 映射表（配置）
 │       └── spicy.py              # 分级查表逻辑（荤优先）
 ├── catalog/
-│   ├── niacg.db      # SQLite 主库（【未动工】）
+│   ├── niacg.db      # SQLite 主库
 │   ├── exports/      # JSON/md 导出物（降级品）
 │   └── logs/         # 抓取日志
-├── pdf/              # 【待建】预览 PDF 存档（不删）
+├── pdf/              # 预览 PDF 存档（不删）
 └── photos/           # 源图，按「模特 → 套」二级目录
 ```
 
@@ -67,7 +67,7 @@ niacg_catalog/
 - 可重建的 zip / 重复散图 / 临时文件：**发完即删**（PDF 预览档除外，见 design.md——预览 PDF 存档 `pdf/` 不删）
 - 旧脚本污染说明：仙仙桃 41P 曾混入 3 张推荐位杂图（实际 38P），Machi、张雪馨可能有同类污染，新链路正则已规避
 
-## 7. SQLite 主库方案（已拍板，未动工）
+## 7. SQLite 主库方案（已拍板，已落地）
 
 - **SQLite 为主库**，JSON/md 降级为导出物
 - 存**元数据清单**（`albums` 表：id/classid/title/model/tags/pages/cover_url/date/spicy/pdfed/pulled/updated_at），全 COS 板 ≈1.67 万行，几 MB，可行
@@ -99,7 +99,10 @@ niacg_catalog/
 | 08-29 | 链路文档只写可复现内容，项目背景归 AGENT.md |
 | 08-30 | 发送不判荤素；`pdfed`=看过没、`pulled`=看过整套没；存量 photos 全部初始化 0 |
 | 08-30 | `spicy` 改字符串四档；`selected` 作废；建库建表拆到 `migrate.py` |
-| 08-30 | 增量同步「撞到已有 pid 即停」；建库/抓取分离 |
+| 08-30 | 增量同步「撞到已有 id 即停」；建库/抓取分离 |
+| 08-30 | 归档两级 photos/{模特}/{套名}/；unclassified 兜底；下载器并发（--concurrency） |
+| 08-31 | preview_batch.pid 改名 album_id（指向 albums.id）；排序键统一为 id 升序 |
+| 08-31 | 发图按套分组（image_sender）；SKILL 补模型传参/占位符/发图契约 |
 
 ## 10. 工作流程规范
 
@@ -109,9 +112,10 @@ niacg_catalog/
 - **token 纪律**：图片不整包塞上下文，走 元数据(file/identify)→缩略图→抽样→脚本闭环 四档方案
 - **先问后干**：遇到不清楚的**优先问 tool-nut 拍板**，不要自己闷头框框干
 
-## 11. 当前状态（2026-08-30）
+## 11. 当前状态（2026-08-31）
 
-- 功能设计已定稿（`design.md`）；`migrate.py` / `sync_metadata.py` / `build_preview_pdf.py` 待建，`niacg.db` 未动工
-- 下载器 `niacg_album_downloader.py` 已能下载整套（`datu|hen` 双路径正则）；**缺**置 `pulled=1` + 每套均匀抽 5 张返回绝对路径
-- `spicy.py` + `spicy_tags.json` 已有；需补「未分类」字符串映射
-- 存量 photos：**9 模特 / 14 套 / 693 张**（详见 REPRODUCE.md 或目录）
+- 功能设计已定稿并落地：`migrate.py` / `sync_metadata.py` / `build_preview_pdf.py` 已建，`catalog/niacg.db` 已建（albums 16768 行、preview_batch 已迁移为 album_id）
+- 下载器 `niacg_album_downloader.py` 已支持整套下载 + `--model` 两级归档 + `--db` 顺手置 `pulled=1` + 每套均匀抽 5 张返回绝对路径 + `--concurrency` 并发（TDD 65/65 绿）
+- `spicy.py` + `spicy_tags.json` 已有，`spicy` 为字符串四档（荤/擦边/素/未分类）
+- 预览 PDF 走 `niacg_prev_{batch_id}.pdf` 存档 `pdf/`；发图按套分组（image_sender）
+- 存量 photos：**9 模特 / 14 套 / 693 张**（详见 REPRODUCE.md 或目录）；后续按需增量拉取建立归档

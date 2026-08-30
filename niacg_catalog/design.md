@@ -33,7 +33,7 @@
 ```
 一问(触发词)
   → ① 增量同步元数据
-  → ② 查 pdfed=0，按 date「从最早的」开始取，限额 60
+  → ② 查 pdfed=0，按 id（=站内 pid）升序从最早开始取，限额 60
   → ③ 拼一份【预览 PDF】(缩略图 + 标题 + 日期 + tags)
       → 发给你 → 【不删，存档 pdf/】
       → 拼成即把这 60 套标 pdfed=1 (=你看过)
@@ -49,7 +49,7 @@
 策略：**从第 1 页（最新）往后翻，撞到库中已有 pid 即停**——只补新增的套，不维护偏移量。db 随时间累积老套，之后「按最早 pdfed=0 拼」才有老图可清。
 
 ### 3.2 预览 PDF 拼取规则
-- 查 `pdfed=0`，**按 date 升序从最早开始**取，**限额 60**。
+- 查 `pdfed=0`，**按 id（=站内 pid）升序从最早开始**取，**限额 60**。
 - 每套包含：1 张懒加载缩略图(250px) + 标题 + 日期 + tags。
 - 拼 PDF 动作由**脚本**完成（非手动），拼成即置 `pdfed=1`。
 
@@ -68,7 +68,7 @@
 
 ## 5. 数据库（SQLite 主库）
 
-库文件：`/AstrBot/data/niacg_catalog/catalog/niacg.db`
+库文件：`/AstrBot/data/skills/niacg_catalog/catalog/niacg.db`
 
 ### 5.1 主表 `albums`（一行 = 一套图集）
 
@@ -101,7 +101,7 @@
 |---|---|---|
 | `scripts/niacg_catalog/migrate.py` | **只**负责建库/建表/schema 迁移 | **与拉量分离**，不混一处 |
 | `scripts/niacg_catalog/sync_metadata.py` | 触发时**增量**抓元数据落库（非一次性全量 1.67 万） | 按 §3.1 锚点 |
-| `scripts/niacg_catalog/build_preview_pdf.py` | 查 pdfed=0，按 date 从最早取限额 60，拼预览 PDF；**拼成即置 pdfed=1** | 缩略图+标题+date+tags |
+| `scripts/niacg_catalog/build_preview_pdf.py` | 查 pdfed=0，按 id 升序取限额 60，拼预览 PDF；**拼成即置 pdfed=1** | 缩略图+标题+date+tags |
 | `scripts/niacg_downloader/niacg_album_downloader.py` | 下载选定整套→photos/（模特→套）；**下完顺手置 pulled=1**；成功即每套均匀抽 5 张，返回 5 张绝对路径 | 「抽几张」逻辑内置于下载器，不单独脚本、不新建目录 |
 
 ### 🧠 我（编排层）做
@@ -114,7 +114,7 @@
 
 ## 7. 目录约定
 
-根目录：`/AstrBot/data/niacg_catalog/`（独立项目，不放在会话工作区）
+根目录：`/AstrBot/data/skills/niacg_catalog/`（独立项目，不放在会话工作区）
 
 ```
 niacg_catalog/
@@ -131,7 +131,7 @@ niacg_catalog/
 │       ├── spicy_tags.json       # 荤素四档映射（荤33·擦边35·素323）
 │       └── spicy.py              # 分级查表（荤优先）
 ├── catalog/
-│   ├── niacg.db                  # SQLite 主库（【未动工】）
+│   ├── niacg.db                  # SQLite 主库
 │   ├── exports/                  # JSON/md 导出物
 │   └── logs/                     # 抓取日志
 ├── pdf/                          # 【待建】预览 PDF 存档目录（不删）
@@ -144,16 +144,13 @@ niacg_catalog/
 
 ## 8. 当前进度
 
-- [x] `spicy.py` + `spicy_tags.json` 荤素映射（已有；需补「未分类」字符串映射）
-- [x] 下载器、REPRODUCE.md
-- [x] 列表页实测：卡片自带 tags、封面懒加载(250px)、pid 递增
-- [x] 增量锚点策略确认（撞到已有 pid 即停）
-- [x] 设计定稿（本文件）
-- [ ] `migrate.py` 建库/建表
-- [ ] `sync_metadata.py` 增量同步
-- [ ] `build_preview_pdf.py` 拼预览 PDF（按最早 date、限额 60）
-- [ ] `niacg_album_downloader` 下载整套 + 置 pulled=1 + 每套均匀抽 5 张返回绝对路径
-- [ ] `pdf/` 目录
+- [x] `spicy.py` + `spicy_tags.json` 荤素映射（`spicy` 字符串四档，荤优先）
+- [x] `migrate.py` 建库/建表（preview_batch 已迁移 `pid→album_id`）
+- [x] `sync_metadata.py` 增量同步（撞到已有 id 即停）+ 预览时懒补详情页
+- [x] `build_preview_pdf.py` 拼预览 PDF（按 id 升序、限额 60，拼成即置 pdfed=1）
+- [x] `niacg_album_downloader` 下载整套 + `--model` 两级归档 + 置 pulled=1 + 每套均匀抽 5 张 + `--concurrency` 并发
+- [x] `pdf/` 预览存档目录；发图按套分组（image_sender）
+- [x] 列表页实测：卡片自带 tags、封面懒加载(250px)、pid 递增（id↔date 单调同步，排序用 id）
 
 ---
 
