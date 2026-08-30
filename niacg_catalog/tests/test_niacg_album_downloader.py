@@ -113,3 +113,50 @@ def test_build_out_dir_handles_title_with_special_chars():
     """套名含空格/中括号等（不做 sanitize，交给调用方），仅拼接。"""
     got = build_out_dir("/root/photos", "张雪馨", "Edison 合作 41P")
     assert got == "/root/photos/张雪馨/Edison 合作 41P", got
+
+
+# ---------------- C4：parse_set（删旧格式兼容） ----------------
+
+import pytest
+from unittest import mock
+import niacg_album_downloader as dl
+
+
+def test_parse_set_three_segment():
+    """只支持 名字:classid:pid 三字段。"""
+    assert dl.parse_set("套名:1:149223") == ("套名", "1", "149223")
+
+
+def test_parse_set_no_legacy_gid_translate():
+    """不再把旧格式 名字:pid:gid 的 gid 特判为 classid=4（删旧格式兼容）。"""
+    assert dl.parse_set("套名:123:4567890123") == ("套名", "123", "4567890123")
+
+
+def test_parse_set_bad_format_raises():
+    """字段数/非数字 → 明确报错。"""
+    with pytest.raises(SystemExit):
+        dl.parse_set("bad")
+
+
+# ---------------- C2：_download_one 失败需留诊断 ----------------
+
+def test_download_one_failure_prints_diag(tmp_path, capsys):
+    """下载异常：返回 False，且 stderr 带 URL+原因（不静默吞）。"""
+    with mock.patch.object(dl.httpx, "get", side_effect=Exception("boom")):
+        ok = dl._download_one("http://x/1.jpg", str(tmp_path), 0)
+    assert ok is False
+    err = capsys.readouterr().err
+    assert "boom" in err and "1.jpg" in err
+
+
+# ---------------- C3：collect_urls 空页应明确报错 ----------------
+
+def test_collect_urls_empty_raises():
+    """页面无主图 URL → raise RuntimeError（而非静默返回空）。"""
+    with mock.patch.object(dl.httpx, "get") as m:
+        resp = mock.Mock()
+        resp.status_code = 200
+        resp.text = "<html>no img here</html>"
+        m.return_value = resp
+        with pytest.raises(RuntimeError):
+            dl.collect_urls("1", "149223")

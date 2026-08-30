@@ -42,10 +42,7 @@ MAIN_IMG_RE = re.compile(
 def parse_set(s):
     parts = [p.strip() for p in s.split(":")]
     if len(parts) != 3 or not parts[1].isdigit() or not parts[2].isdigit():
-        raise SystemExit(f"格式错误: {s!r}，应为 名字:classid:pid 或 名字:pid:gid")
-    # 兼容旧格式 名字:pid:gid（gid 为 10 位 → classid=4 套图）
-    if len(parts[2]) >= 9:
-        return parts[0], "4", parts[1]
+        raise SystemExit(f"格式错误: {s!r}，应为 名字:classid:pid")
     return parts[0], parts[1], parts[2]
 
 
@@ -134,6 +131,8 @@ def collect_urls(classid, pid):
         u = m.group(1)
         if u not in urls:
             urls.append(u)
+    if not urls:
+        raise RuntimeError(f"{url} 未提取到主图 URL（可能分类不对或页面异常）")
     return urls
 
 
@@ -156,8 +155,11 @@ def _download_one(url: str, out_dir: str, index: int) -> bool:
             with open(os.path.join(out_dir, f"{index+1:03d}{ext}"), "wb") as fp:
                 fp.write(r.content)
             return True
+        print(f"[DIAG] {index+1:03d} 状态码={r.status_code} 体积={len(r.content)} 疑似坏图: {url}",
+              file=sys.stderr)
         return False
-    except Exception:
+    except Exception as e:
+        print(f"[DIAG] {index+1:03d} 下载异常 {url}: {e}", file=sys.stderr)
         return False
 
 
@@ -220,14 +222,12 @@ def main():
         conn = sqlite3.connect(args.db)   # 只用于置 pulled，不建表
 
     try:
+        failures = []   # 收集失败套，避免静默吞 → 末尾明确汇总并置非零退出码
         for name, classid, pid in sets:
             out_dir = build_out_dir(out_root, args.model, name)
             print(f"===== 开始 {name} (classid={classid}, pid={pid}) =====", flush=True)
             try:
                 urls = collect_urls(classid, pid)
-                if not urls:
-                    print(f"[{name}] 未找到主图 URL，可能分类不对或页面异常", flush=True)
-                    continue
                 ok, fail = download(urls, out_dir, args.concurrency)
                 total = len([f for f in os.listdir(out_dir) if not f.startswith(".")])
                 print(f"[{name}] 主图={len(urls)} 下载OK={ok} FAIL={fail} 目录张数={total}", flush=True)
@@ -243,6 +243,10 @@ def main():
                         print(f"[SAMPLE pid={pid}] {p}", flush=True)
             except Exception as e:
                 print(f"[{name}] 失败: {e}", flush=True)
+                failures.append(name)
+        if failures:
+            print(f"以下 {len(failures)} 套下载失败: {', '.join(failures)}", file=sys.stderr, flush=True)
+            sys.exit(1)
     finally:
         if conn is not None:
             conn.close()
