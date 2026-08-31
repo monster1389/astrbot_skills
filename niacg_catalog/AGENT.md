@@ -54,7 +54,7 @@ niacg_catalog/
 
 ## 5. 内容分级规则（荤素四档）
 
-- 白名单查表：`spicy_tags.json`，四档 **荤 / 擦边 / 素 / 未分类**（荤33·擦边35·素323）
+- 白名单查表：`spicy_tags.json`，四档 **荤 / 擦边 / 素 / 未分类**（荤36·擦边35·素323）
 - 判定规则：**荤优先**——任一荤 tag 命中即荤档
 - **新 tag 不猜**：表外 tag 一律落「未分类」，人工补档后再入表
 - 分级（`spicy`/`model`）是附加字段、仅作归档标注，**不参与「列不列 / 发不发」判定**
@@ -103,6 +103,7 @@ niacg_catalog/
 | 08-30 | 归档两级 photos/{模特}/{套名}/；unclassified 兜底；下载器并发（--concurrency） |
 | 08-31 | preview_batch.pid 改名 album_id（指向 albums.id）；排序键统一为 id 升序 |
 | 08-31 | 发图按套分组（image_sender）；SKILL 补模型传参/占位符/发图契约 |
+| 08-31 | spicy 列表页即算（`_parse_album` 调 `classify_str`）；「无」占位→未分类；白名单补露穴/大乳晕/阿黑顏(繁)；存量 12965 行回填（`backfill_spicy.py`，只改 spicy 列），`catalog/niacg.db.bak_20260831` 备份 |
 
 ## 10. 工作流程规范
 
@@ -116,6 +117,6 @@ niacg_catalog/
 
 - 功能设计已定稿并落地：`migrate.py` / `sync_metadata.py` / `build_preview_pdf.py` 已建，`catalog/niacg.db` 已建（albums 16768 行、preview_batch 已迁移为 album_id）
 - 下载器 `niacg_album_downloader.py` 已支持整套下载 + `--model` 两级归档 + `--db` 顺手置 `pulled=1` + 每套均匀抽 5 张返回绝对路径 + `--concurrency` 并发（TDD 65/65 绿）
-- `spicy.py` + `spicy_tags.json` 已有，`spicy` 为字符串四档（荤/擦边/素/未分类）
+- `spicy.py` + `spicy_tags.json` 已有；列表页入库即算 `classify_str` 分级，「无」占位→未分类；存量已回填（荤4753/擦边5433/素2779/未分类3803，`backfill_spicy.py` 只改 spicy 列）
 - 预览 PDF 走 `niacg_prev_{batch_id}.pdf` 存档 `pdf/`；发图按套分组（image_sender）
 - 存量 photos：**9 模特 / 14 套 / 693 张**（详见 REPRODUCE.md 或目录）；后续按需增量拉取建立归档
