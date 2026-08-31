@@ -52,6 +52,24 @@ def classify(tags: Iterable[str], title: str = "") -> Tuple[str, list, list, lis
     return "素", spicy_hit, edgy_hit, unknown
 
 
+def classify_str(tags: str) -> str:
+    """将逗号分隔的 tags 字符串分级为档位（含「无」占位符兜底）。
+
+    与 sync_metadata._parse_album 的列表页判定保持一致，供 sync 与存量回填复用。
+
+    Args:
+        tags: 逗号分隔的 tag 字符串，可为空串。
+
+    Returns:
+        档位："荤"/"擦边"/"素"；若剔除「无」占位后无任何实质 tag，返回 "未分类"。
+    """
+    tag_list = [t.strip() for t in (tags or "").split(',') if t.strip()]
+    level, *_ = classify(tag_list)
+    if not [t for t in tag_list if t != "无"]:
+        return "未分类"
+    return level
+
+
 if __name__ == "__main__":
     cases = [
         (["涂指甲油", "连裤袜", "学生制服"], "擦边"),  # 仙仙桃 JK

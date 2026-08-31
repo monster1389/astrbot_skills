@@ -287,3 +287,61 @@ def test_upsert_albums_preserves_pdfed_pulled(tmp_path):
     upsert_albums(conn, albums)
     row = conn.execute("SELECT pdfed FROM albums WHERE id=?", (albums[0].pid,)).fetchone()
     assert row[0] == 1, f"upsert 不应重置 pdfed，实为 {row[0]}"
+
+
+# ---------------- 切片1：列表页即算 spicy ----------------
+# 红卡：列表页阶段就要用卡片自带 tags 调 spicy.classify 算出档位（不再恒为未分类）。
+
+def test_parse_list_page_spicy_computed_from_normal_tags():
+    """列表页即算 spicy：第一套 DJAWA Luniie 含擦边 tag(泳装) → 判擦边。
+
+    当前实现 Album.spicy 恒为「未分类」，故此断言在实装前为红（切片1 tracer bullet）。
+    """
+    from sync_metadata import parse_list_page
+    albums = parse_list_page(PAGE, classid=1, whitelist=set())
+    a = albums[0]
+    # 该套 tags=绝区零,化妆,泳装,sunna；化妆=素、泳装=擦边，荤优先下无荤 tag → 擦边
+    assert a.spicy == "擦边", f"泳装应判「擦边」，实为 {a.spicy}"
+
+
+def test_parse_list_page_spicy_unclassified_when_no_effective_tag():
+    """列表页即算 spicy：tags 只剩「无」占位符（无任何有效荤素 tag）→ 判「未分类」而非「素」。
+
+    切片2：用户拍板「占位符=数据缺失 ≠ 真素」，应标未分类。
+    当前 classify(['无']) 因「无」不在任何白名单 → 落到「素」，故实装前为红。
+    """
+    from sync_metadata import parse_list_page
+    block = (
+        '<div class="col-xs-6 col-sm-4 col-md-3 col-lg-3 list-col col-xl-2">'
+        '<a href="/moehome-1-78888.html" title="三刀刀miido - 黑贞德">'
+        '<img data-src="https://boom.xunge.cyou/slthh/2026/08/26/1787716844/0_x.webp">'
+        '</a><div class="tag">无</div></div>'
+    )
+    albums = parse_list_page(block, classid=1, whitelist=set())
+    # tags 仅「无」，无有效 tag → 未分类（不是素）
+    assert albums[0].spicy == "未分类", f"无有效 tag 应判「未分类」，实为 {albums[0].spicy}"
+
+
+# ---------------- 切片2回归：sync_meta 落库 spicy 且无关字段不被误伤 ----------------
+# 用户红线：改 spicy 接入不得误伤 model/tags/date/pdfed/pulled 等无关字段。
+
+def test_sync_meta_persists_spicy_and_preserves_unrelated_fields(tmp_path):
+    """sync_meta 落库：spicy 写入正确 + model/tags/date/pdfed/pulled 原样不动。"""
+    from sync_metadata import sync_meta
+    from migrate import init_db
+    conn = init_db(str(tmp_path / "t.db"))
+    sync_meta(conn, page=0, photos_dir="", f_list=lambda page: PAGE)
+
+    # ① spicy 已按列表页 tags 算出并写入（DJAWA Luniie → 擦边）
+    row = conn.execute("SELECT spicy,tags,model,date FROM albums WHERE id=149343").fetchone()
+    assert row is not None, "149343 应已落库"
+    assert row[0] == "擦边", f"落库 spicy 应为擦边，实为 {row[0]}"
+
+    # ② 无关字段保真：tags 有值、model 按白名单、date 列表页阶段留空
+    assert row[1] != "", "tags 应保留"
+    assert row[2] == "未分类", f"model 应未分类（DJAWA 团队不在白名单），实为 {row[2]}"
+    assert row[3] == "", f"date 列表页阶段应留空，实为 {row[3]}"
+
+    # ③ 落库不误伤 pdfed/pulled（初始 0，不被 spicy 处理改动）
+    st = conn.execute("SELECT pdfed,pulled FROM albums WHERE id=149343").fetchone()
+    assert st[0] == 0 and st[1] == 0, f"pdfed/pulled 应为 0，实为 {st}"

@@ -13,6 +13,8 @@ import datetime
 import urllib.parse
 from dataclasses import dataclass, asdict
 
+from spicy import classify_str
+
 # ---------------- 常量 ----------------
 
 LIST_RE = re.compile(
@@ -127,6 +129,8 @@ def _parse_album(block: str, classid: int, whitelist: set[str]) -> Album:
     cover_url = cover.group(1)
     tags = ",".join(TAG_RE.findall(block))
     model = extract_model(full_title, whitelist)
+    # 列表页即算荤素（切片1）：复用 spicy.classify_str（含「无」占位符兜底，切片2）
+    spicy = classify_str(tags)
     # date/pages/preview_urls 列表页拿不到可靠值，留空/None，由详情页 enrich 补全
     return Album(
         pid=pid,
@@ -138,6 +142,7 @@ def _parse_album(block: str, classid: int, whitelist: set[str]) -> Album:
         cover_url=cover_url,
         preview_urls=cover_url,  # 列表页阶段只能用封面这张预览
         date="",              # 详情页 datePublished 补
+        spicy=spicy,          # 列表页即算荤素档位
         updated_at=datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
     )
 
