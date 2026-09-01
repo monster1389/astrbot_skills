@@ -26,6 +26,14 @@ niacg 套图下载器 (niacg_album_downloader)
 import argparse, os, re, sys, httpx
 from concurrent.futures import ThreadPoolExecutor
 
+# 确保 sync_metadata（白名单/模特判定）可 import：它在同级 ../niacg_catalog/ 下，
+# 独立运行时（CLI）不在 sys.path，需按相对路径推导加入；pytest 下 conftest 已注入，幂等。
+_DL_DIR = os.path.dirname(os.path.abspath(__file__))
+_CAT_DIR = os.path.join(os.path.dirname(_DL_DIR), "niacg_catalog")
+if _CAT_DIR not in sys.path:
+    sys.path.insert(0, _CAT_DIR)
+from sync_metadata import extract_model, list_whitelist  # noqa: E402  (依赖上面 sys.path 注入)
+
 # ---- 环境常量（可用环境变量覆盖）----
 PROXY = os.environ.get("NIACG_PROXY", "http://172.17.0.1:7890")
 REF   = "https://www.niacg.com/"
@@ -86,6 +94,27 @@ def sample_evenly(paths, n):
 # model 不明确（未分类/未知/空/None）时归档目录的统一兜底名
 UNCLASSIFIED_DIR = "unclassified"
 _UNNAMED_MODELS = {"未分类", "未知", "unknown", "unidentified", "", None}
+
+
+def resolve_model(override: str | None, name: str, whitelist: set[str]) -> str:
+    """决定某套的模特名（归档路径第一层）。override 优先，否则白名单判定。
+
+    编排层**不应**手填 model——model 归属由数据（白名单匹配）决定，这里只在
+    显式需要覆盖时（如 --model）才走 override。两者都归 build_out_dir 做
+    unclassified 兜底。
+
+    Args:
+        override: 显式指定的模特名；空/None 视为未给。
+        name: 套名（站方完整标题），作白名单匹配的输入。
+        whitelist: 白名单模特名集合（EX photos/ 顶层目录扫出）。
+
+    Returns:
+        该套归属的模特名（白名单命中名 / override / 「未分类」）。override 为
+        空/None 时等价于 ``extract_model(name, whitelist)``。
+    """
+    if override:
+        return override
+    return extract_model(name, whitelist)
 
 
 def build_out_dir(out_root: str, model: str | None, title: str) -> str:
@@ -221,10 +250,14 @@ def main():
         import sqlite3
         conn = sqlite3.connect(args.db)   # 只用于置 pulled，不建表
 
+    # 白名单从 photos/ 顶层目录扫出一次，循环内所有套复用（决定权在数据，不在编排层）
+    whitelist = list_whitelist(out_root)
+
     try:
         failures = []   # 收集失败套，避免静默吞 → 末尾明确汇总并置非零退出码
         for name, classid, pid in sets:
-            out_dir = build_out_dir(out_root, args.model, name)
+            model = resolve_model(args.model, name, whitelist)
+            out_dir = build_out_dir(out_root, model, name)
             print(f"===== 开始 {name} (classid={classid}, pid={pid}) =====", flush=True)
             try:
                 urls = collect_urls(classid, pid)

@@ -115,6 +115,32 @@ def test_build_out_dir_handles_title_with_special_chars():
     assert got == "/root/photos/张雪馨/Edison 合作 41P", got
 
 
+# ---------------- C7：resolve_model（override 优先，否则白名单判定） ----------------
+
+def test_resolve_model_override_wins():
+    """给了 override → 直接用，不查白名单。"""
+    whitelist = {"Rikachan", "Machi"}
+    assert dl.resolve_model("Machi", "Rikachan - Yae Miko", whitelist) == "Machi"
+
+
+def test_resolve_model_no_override_whitelist_hit():
+    """没给 override → 走 extract_model 白名单精确匹配，命中返回模特名。"""
+    whitelist = {"Rikachan"}
+    assert dl.resolve_model(None, "Rikachan - Yae Miko", whitelist) == "Rikachan"
+
+
+def test_resolve_model_no_override_unclassified():
+    """没给 override 且未命中白名单 → 未分类。"""
+    whitelist = {"Rikachan"}
+    assert dl.resolve_model(None, "Nookkiizz - Koharu", whitelist) == "未分类"
+
+
+def test_resolve_model_override_empty_string_is_falsy():
+    """override 为空串 → 视为未给，走白名单判定（同 None）。"""
+    whitelist = {"Rikachan"}
+    assert dl.resolve_model("", "Rikachan - Yae Miko", whitelist) == "Rikachan"
+
+
 # ---------------- C4：parse_set（删旧格式兼容） ----------------
 
 import pytest
