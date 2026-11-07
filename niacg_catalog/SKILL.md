@@ -1,6 +1,6 @@
 ---
 name: niacg_catalog
-description: 一问就列最新/未看过的 niacg COS 图集，拼预览 PDF 供挑选，选中整套下载归档。触发词：看看新图 / 来点cos / 有没有新的 / 最新。
+description: 一问就列最新/未看过的 niacg COS 图集，拼预览 PDF 供挑选，选中整套下载归档。触发词：看看新图 / 来点cos / 有没有新的 / 最新 / 下一批。
 ---
 
 # niacg_catalog — 「一问」编程序
